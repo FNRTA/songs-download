@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
+
 @dataclass
 class DeezerConfig:
     cookie_arl: str
@@ -9,4 +10,4 @@ class DeezerConfig:
     cookie: Optional[str] = None
     user_id: Optional[str] = None
     user_agent: str = "Mozilla/5.0 (X11; Linux i686; rv:135.0) Gecko/20100101 Firefox/135.0"
-    download_folder: str = './downloads'
+    download_folder: str = './deezer-downloads'

@@ -33,7 +33,7 @@ class DeezerSession:
         })
         return session
 
-    def initialize(self):
+    def initialize_session(self):
         """Initialize session with user data and quality settings"""
         user_data = self._get_user_data()
         self.license_token = user_data['license_token']

@@ -8,8 +8,7 @@ import requests
 from .sessions import DeezerSession
 from .config import DeezerConfig
 from .crypto import DeezerCrypto
-from .types import ContentType
-from .exceptions import DeezerApiException, Deezer403Exception, Deezer404Exception
+from .exceptions import DeezerException, DeezerApiException, Deezer403Exception, Deezer404Exception
 
 
 class ScriptExtractor(HTMLParser):
@@ -38,7 +37,7 @@ class DeezerClient:
 
     def initialize(self):
         """Initialize the client session"""
-        self.session.initialize()
+        self.session.initialize_session()
 
     def download_track(self, track_id: str, output_path: Optional[str] = None) -> str:
         """
@@ -166,7 +165,7 @@ class DeezerClient:
     def _get_track_url(self, track_token: str) -> str:
         """Get the download URL for a track"""
         try:
-            response = self.session.session.post(
+            response = requests.post(
                 "https://media.deezer.com/v1/get_url",
                 json={
                     'license_token': self.session.license_token,
@@ -177,6 +176,9 @@ class DeezerClient:
                         ]
                     }],
                     'track_tokens': [track_token]
+                },
+                headers={
+                    'User-Agent': self.config.user_agent
                 }
             )
             response.raise_for_status()

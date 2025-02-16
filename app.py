@@ -89,6 +89,7 @@ template = """
 </html>
 """
 
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
@@ -125,6 +126,7 @@ def index():
         return "Download successful!"
     else:
         return render_template_string(template)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
