@@ -13,7 +13,7 @@ if __name__ == "__main__":
 
     # Configure client
     config = DeezerConfig(
-        cookie_arl='3c4b24b215afa45bee789ef23f691789f589a84f844f9dbbd6e115080a2806831389a14ad3dfed6e58b6f77da3715af588e9caa0a42017c629acca110d2abcd5bf43c1b69a7c8b56b4be6c721b705f9f522e847d44dc0c5c09261ecde5988316',  # Replace with your ARL cookie
+        cookie_arl='',  # Replace with your ARL cookie
     )
 
     client = DeezerClient(config)
