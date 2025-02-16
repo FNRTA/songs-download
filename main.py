@@ -626,7 +626,10 @@ if __name__ == '__main__':
     id = url.split('/')[-1]
     print("id: " + id)
 
-    s = get_song_infos_from_deezer_website(typeForDownload, id)
+    # s = get_song_infos_from_deezer_website(typeForDownload, id)
+    s = get_song_infos_from_deezer_website(TYPE_TRACK, '925108')
+    download_song(s, 'test3.mp3')
+    sys.exit(1)
 
     # get all SNG_ID and SNG_TITLE from s
     # then download songs
