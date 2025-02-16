@@ -62,7 +62,8 @@ class DeezerClient:
         if not output_path:
             # Clean filename of invalid characters
             clean_title = re.sub(r'[<>:"/\\|?*]', '', track_info['SNG_TITLE'])
-            filename = f"{clean_title}.{self._get_file_extension()}"
+            clean_artist_name = re.sub(r'[<>:"/\\|?*]', '', track_info['ART_NAME'])
+            filename = f"{clean_artist_name}.' - '.{clean_title}.{self._get_file_extension()}"
             output_path = os.path.join(self.config.download_folder, filename)
 
         # Create output directory if it doesn't exist

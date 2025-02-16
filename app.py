@@ -184,7 +184,6 @@ def download():
 
     try:
         if content_type == 'track':
-            client.download_progress['total'] = 1
             client.download_track(content_id)
         elif content_type == 'album':
             client.download_album(content_id)
