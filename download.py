@@ -2,6 +2,7 @@ from deezer_downloader.client import DeezerClient
 from deezer_downloader.config import DeezerConfig
 from deezer_downloader.exceptions import DeezerException
 import re
+from logging_config import logger
 
 if __name__ == "__main__":
     import argparse
@@ -21,7 +22,7 @@ if __name__ == "__main__":
     # Extract type and ID from URL
     url_match = re.match(r'https?://(?:www\.)?deezer\.com/(?:\w+/)?(\w+)/(\d+)', args.url)
     if not url_match:
-        print("Invalid Deezer URL")
+        logger.info("Invalid Deezer URL")
         exit(1)
 
     content_type, content_id = url_match.groups()
@@ -34,6 +35,6 @@ if __name__ == "__main__":
         elif content_type == 'playlist':
             client.download_playlist(content_id)
         else:
-            print(f"Unsupported content type: {content_type}")
+            logger.info(f"Unsupported content type: {content_type}")
     except DeezerException as e:
-        print(f"Error: {e}")
+        logger.info(f"Error: {e}")

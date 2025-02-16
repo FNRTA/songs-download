@@ -2,6 +2,7 @@ import requests
 from typing import Optional, Dict, Any
 from .config import DeezerConfig
 from .exceptions import DeezerApiException
+from logging_config import logger
 
 
 class DeezerSession:
@@ -68,5 +69,5 @@ class DeezerSession:
             self.sound_format = "MP3_320"
         else:
             if quality_config == "flac":
-                print("WARNING: FLAC quality requested but not supported. Falling back to MP3")
+                logger.info("WARNING: FLAC quality requested but not supported. Falling back to MP3")
             self.sound_format = "MP3_128"
