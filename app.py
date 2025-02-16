@@ -1,7 +1,8 @@
-from flask import Flask, request, render_template_string
-from deezer_downloader.client import DeezerClient
+from flask import Flask, request, render_template_string, jsonify
+from deezer_downloader.client import DeezerClient  # Import the global variable
 from deezer_downloader.config import DeezerConfig
 from deezer_downloader.exceptions import DeezerException
+from progress_tracker import ProgressTracker
 import re
 
 app = Flask(__name__)
@@ -63,17 +64,74 @@ template = """
         border-radius: 5px;
         cursor: pointer;
       }
-      .button:hover {
-        background-color: #3e8e41;
+      .button:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+      }
+      .progress {
+        margin-top: 10px;
+        text-align: center;
+      }
+      .finished {
+        color: green;
+        font-weight: bold;
+        margin-top: 10px;
+        text-align: center;
       }
     </style>
+    <script>
+      function startDownload() {
+        const button = document.querySelector('.button');
+        const progress = document.querySelector('.progress');
+        const finished = document.querySelector('.finished');
+        const form = document.querySelector('form');
+
+        button.disabled = true;
+        progress.style.display = 'block';
+        finished.style.display = 'none';
+
+        const formData = new FormData(form);
+        
+          const interval = setInterval(() => {
+            fetch('/progress')
+              .then(response => response.json())
+              .then(data => {
+                if (data.finished) {
+                  clearInterval(interval);
+                  button.disabled = false;
+                  progress.style.display = 'none';
+                  finished.style.display = 'block';
+                  finished.textContent = 'Download finished!';
+                } else {
+                  progress.textContent = `Downloading ${data.current}/${data.total}`;
+                }
+              });
+          }, 2000);
+
+        fetch('/download', {
+          method: 'POST',
+          body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.error) {
+            alert(data.error);
+            button.disabled = false;
+            progress.style.display = 'none';
+            return;
+          }
+
+
+        });
+      }
+    </script>
   </head>
   <body>
     <div class="container">
       <div class="header">
         <h1>Deezer Downloader</h1>
       </div>
-      <form method="post">
+      <form onsubmit="event.preventDefault(); startDownload();">
         <div class="form-group">
           <label for="arl_cookie">ARL Cookie:</label>
           <input type="text" id="arl_cookie" name="arl_cookie">
@@ -83,50 +141,68 @@ template = """
           <input type="text" id="url" name="url">
         </div>
         <button class="button" type="submit">Download</button>
+        <div class="progress" style="display: none;"></div>
+        <div class="finished" style="display: none;"></div>
       </form>
     </div>
   </body>
 </html>
 """
 
+# Global variables to track progress
+download_progress = {
+    'current': 0,
+    'total': 0,
+    'finished': False
+}
 
-@app.route('/', methods=['GET', 'POST'])
+
+@app.route('/', methods=['GET'])
 def index():
-    if request.method == 'POST':
-        arl_cookie = request.form['arl_cookie']
-        url = request.form['url']
+    return render_template_string(template)
 
-        # Configure client
-        config = DeezerConfig(
-            cookie_arl=arl_cookie
-        )
 
-        client = DeezerClient(config)
-        client.initialize()
+@app.route('/download', methods=['POST'])
+def download():
+    arl_cookie = request.form['arl_cookie']
+    url = request.form['url']
 
-        # Extract type and ID from URL
-        url_match = re.match(r'https?://(?:www\.)?deezer\.com/(?:\w+/)?(\w+)/(\d+)', url)
-        if not url_match:
-            return "Invalid Deezer URL"
+    # Configure client
+    config = DeezerConfig(
+        cookie_arl=arl_cookie
+    )
 
-        content_type, content_id = url_match.groups()
+    client = DeezerClient(config)
+    client.initialize()
 
-        try:
-            if content_type == 'track':
-                client.download_track(content_id)
-            elif content_type == 'album':
-                client.download_album(content_id)
-            elif content_type == 'playlist':
-                client.download_playlist(content_id)
-            else:
-                return f"Unsupported content type: {content_type}"
-        except DeezerException as e:
-            return f"Error: {e}"
+    # Extract type and ID from URL
+    url_match = re.match(r'https?://(?:www\.)?deezer\.com/(?:\w+/)?(\w+)/(\d+)', url)
+    if not url_match:
+        return jsonify({'error': 'Invalid Deezer URL'})
 
-        return "Download successful!"
-    else:
-        return render_template_string(template)
+    content_type, content_id = url_match.groups()
+
+    try:
+        if content_type == 'track':
+            client.download_progress['total'] = 1
+            client.download_track(content_id)
+        elif content_type == 'album':
+            client.download_album(content_id)
+        elif content_type == 'playlist':
+            client.download_playlist(content_id)
+        else:
+            return jsonify({'error': f'Unsupported content type: {content_type}'})
+    except DeezerException as e:
+        return jsonify({'error': str(e)})
+
+    return jsonify({'success': True})
+
+
+@app.route('/progress', methods=['GET'])
+def progress():
+    progress_tracker = ProgressTracker()  # Access the Singleton
+    return jsonify(progress_tracker.get_progress())
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)

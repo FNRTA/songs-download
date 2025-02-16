@@ -1,14 +1,15 @@
 import os
 import re
 import json
+import requests
 from typing import List, Dict, Any, Optional, Tuple
 from html.parser import HTMLParser
-import requests
-
 from .sessions import DeezerSession
 from .config import DeezerConfig
 from .crypto import DeezerCrypto
 from .exceptions import DeezerException, DeezerApiException, Deezer403Exception, Deezer404Exception
+from progress_tracker import ProgressTracker
+from logging_config import logger
 
 
 class ScriptExtractor(HTMLParser):
@@ -34,6 +35,7 @@ class DeezerClient:
     def __init__(self, config: DeezerConfig):
         self.config = config
         self.session = DeezerSession(config)
+        self.progress_tracker = ProgressTracker()  # Reference to the global progress
 
     def initialize(self):
         """Initialize the client session"""
@@ -50,6 +52,11 @@ class DeezerClient:
         Returns:
             Path to downloaded file
         """
+        # Update progress
+        self.progress_tracker.update(
+            current=self.progress_tracker.get_progress()['current'] + 1,
+            total=self.progress_tracker.get_progress()['total']
+        )
         track_info = self._get_track_info(track_id)
 
         if not output_path:
@@ -75,18 +82,22 @@ class DeezerClient:
             List of paths to downloaded files
         """
         playlist_name, tracks = self._get_playlist_tracks(playlist_id)
+
+        self.progress_tracker.update(current=0, total=len(tracks), finished=False)
+
         downloaded_files = []
 
-        print(f"Downloading playlist '{playlist_name}' ({len(tracks)} tracks)")
+        logger.info(f"Downloading playlist '{playlist_name}' ({len(tracks)} tracks)")
 
         for i, track in enumerate(tracks, 1):
             try:
-                print(f"[{i}/{len(tracks)}] Downloading: {track['SNG_TITLE']}")
+                logger.info(f"[{i}/{len(tracks)}] Downloading: {track['SNG_TITLE']}")
                 path = self.download_track(str(track['SNG_ID']))
+                self.progress_tracker.update(current=i, total=len(tracks))
                 downloaded_files.append(path)
             except DeezerException as e:
-                print(f"Failed to download track {track['SNG_TITLE']}: {e}")
-
+                logger.info(f"Failed to download track {track['SNG_TITLE']}: {e}")
+        self.progress_tracker.update(current=len(tracks), total=len(tracks), finished=True)
         return downloaded_files
 
     def download_album(self, album_id: str) -> List[str]:
@@ -100,18 +111,21 @@ class DeezerClient:
             List of paths to downloaded files
         """
         tracks = self._get_album_tracks(album_id)
+        self.progress_tracker.update(current=0, total=len(tracks), finished=False)
+
         downloaded_files = []
 
-        print(f"Downloading album '{tracks[0]['ALB_TITLE']}' ({len(tracks)} tracks)")
+        logger.info(f"Downloading album '{tracks[0]['ALB_TITLE']}' ({len(tracks)} tracks)")
 
         for i, track in enumerate(tracks, 1):
             try:
-                print(f"[{i}/{len(tracks)}] Downloading: {track['SNG_TITLE']}")
+                logger.info(f"[{i}/{len(tracks)}] Downloading: {track['SNG_TITLE']}")
                 path = self.download_track(str(track['SNG_ID']))
+                self.progress_tracker.update(current=i, total=len(tracks))
                 downloaded_files.append(path)
             except DeezerException as e:
-                print(f"Failed to download track {track['SNG_TITLE']}: {e}")
-
+                logger.info(f"Failed to download track {track['SNG_TITLE']}: {e}")
+        self.progress_tracker.update(current=len(tracks), total=len(tracks), finished=True)  # Mark as finished
         return downloaded_files
 
     def _get_file_extension(self) -> str:
@@ -145,7 +159,7 @@ class DeezerClient:
             url = self._get_track_url(track_info['TRACK_TOKEN'])
         except Exception as e:
             if "FALLBACK" in track_info:
-                print(f"Track not available, trying fallback version...")
+                logger.info(f"Track not available, trying fallback version...")
                 track_info = track_info["FALLBACK"]
                 url = self._get_track_url(track_info['TRACK_TOKEN'])
             else:
@@ -158,7 +172,7 @@ class DeezerClient:
                 response.raise_for_status()
                 with open(output_path, "wb") as output_file:
                     DeezerCrypto.decrypt_file(response, key, output_file)
-            print(f"Successfully downloaded: {output_path}")
+            logger.info(f"Successfully downloaded: {output_path}")
         except Exception as e:
             raise DeezerApiException(f"Download failed: {e}")
 
