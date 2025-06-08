@@ -14,7 +14,8 @@ class ProgressTracker:
             'starting': True,
             'current': 0,
             'total': 0,
-            'finished': False
+            'finished': False,
+            'error': None  # Added error field
         }
 
     # Public reset method that acquires the lock
@@ -22,21 +23,30 @@ class ProgressTracker:
         with self._lock:
             self._do_reset()
 
-    def update(self, current, total, finished=False):
+    def update(self, current=None, total=None, finished=False, error=None):
         with self._lock:
-            self.progress['starting'] = False
-            self.progress['current'] = current
-            self.progress['total'] = total
+            # Only update starting if current or total is provided, 
+            # allowing error updates without changing 'starting' flag prematurely.
+            if current is not None or total is not None:
+                self.progress['starting'] = False
+
+            if current is not None:
+                self.progress['current'] = current
+            if total is not None:
+                self.progress['total'] = total
+            
             self.progress['finished'] = finished
+            if error:
+                self.progress['error'] = error
+                self.progress['finished'] = True  # Errors usually mean the task is finished
 
     def get_progress(self):
         with self._lock:
             # Make a copy to return the state *before* any potential reset
             progress_to_return = dict(self.progress)
 
+            # If finished (either successfully or with an error), reset for the next operation.
             if self.progress['finished']:
-                # If finished, reset the state for the next operation.
-                # We are already holding the lock, so call the internal reset.
                 self._do_reset()
 
             return progress_to_return
