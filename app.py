@@ -1,11 +1,14 @@
 from flask import Flask, request, render_template_string, jsonify
-from deezer_downloader.client import DeezerClient  # Import the global variable
+from deezer_downloader.client import DeezerClient
 from deezer_downloader.config import DeezerConfig
 from deezer_downloader.exceptions import DeezerException
-from progress_tracker import ProgressTracker
 import re
+import uuid
 
 app = Flask(__name__)
+
+# Dictionary to store progress trackers for each task
+task_progress_trackers = {}
 
 # Define the HTML template for the web interface
 template = """
@@ -129,12 +132,15 @@ template = """
         }
       });
 
+      let currentInterval = null; 
+      let currentTaskId = null; 
+
       function startDownload() {
         const button = document.querySelector('.button');
         const progress = document.querySelector('.progress');
         const finished = document.querySelector('.finished');
         const form = document.querySelector('form');
-        const arlCookieInput = document.getElementById('arl_cookie'); // Get ARL cookie input
+        const arlCookieInput = document.getElementById('arl_cookie'); 
 
         // Store ARL cookie in localStorage
         if (arlCookieInput && arlCookieInput.value) {
@@ -147,23 +153,55 @@ template = """
 
         const formData = new FormData(form);
         
-          const interval = setInterval(() => {
-            fetch('/progress')
-              .then(response => response.json())
-              .then(data => {
-                if (data.starting) {
-                  progress.textContent = 'Download starting...';
-                } else if (data.finished) {
-                  clearInterval(interval);
-                  button.disabled = false;
-                  progress.style.display = 'none';
-                  finished.style.display = 'block';
-                  finished.textContent = 'Download finished!';
-                } else {
-                  progress.textContent = `Downloading ${data.current}/${data.total}`;
-                }
-              });
-          }, 2000);
+        // Clear previous interval if any
+        if (currentInterval) {
+          clearInterval(currentInterval);
+          currentInterval = null;
+        }
+        currentTaskId = null; 
+
+        // Start polling for progress
+        currentInterval = setInterval(() => {
+          if (!currentTaskId) { 
+            return;
+          }
+          fetch(`/progress?task_id=${currentTaskId}`)
+            .then(response => response.json())
+            .then(data => {
+              if (data.error) {
+                showSnackbar(data.error);
+                clearInterval(currentInterval);
+                currentInterval = null;
+                button.disabled = false;
+                progress.style.display = 'none';
+                currentTaskId = null;
+                return;
+              }
+
+              if (data.starting) {
+                progress.textContent = 'Download starting...';
+              } else if (data.finished) {
+                clearInterval(currentInterval);
+                currentInterval = null;
+                button.disabled = false;
+                progress.style.display = 'none';
+                finished.style.display = 'block';
+                finished.textContent = 'Download finished!';
+                currentTaskId = null; 
+              } else {
+                progress.textContent = `Downloading ${data.current}/${data.total}`;
+              }
+            })
+            .catch(error => { 
+                console.error('Error fetching progress:', error);
+                showSnackbar('Error checking download status.');
+                clearInterval(currentInterval);
+                currentInterval = null;
+                button.disabled = false;
+                progress.style.display = 'none';
+                currentTaskId = null;
+            });
+        }, 2000);
 
         fetch('/download', {
           method: 'POST',
@@ -175,9 +213,34 @@ template = """
             showSnackbar(data.error);
             button.disabled = false;
             progress.style.display = 'none';
-            clearInterval(interval);
+            if (currentInterval) {
+              clearInterval(currentInterval);
+              currentInterval = null;
+            }
             return;
           }
+          // Store the task_id from the response
+          if (data.task_id) {
+            currentTaskId = data.task_id;
+          } else {
+            showSnackbar('Error: No task ID received from server.');
+            button.disabled = false;
+            progress.style.display = 'none';
+            if (currentInterval) {
+              clearInterval(currentInterval);
+              currentInterval = null;
+            }
+          }
+        })
+        .catch(error => {
+            console.error('Error initiating download:', error);
+            showSnackbar('Network or server error during download request.');
+            button.disabled = false;
+            progress.style.display = 'none';
+            if (currentInterval) {
+              clearInterval(currentInterval);
+              currentInterval = null;
+            }
         });
       }
       
@@ -190,7 +253,7 @@ template = """
     </script>
   </head>
   <body>
-    <div id="snackbar">Some text some message..</div> <!-- Snackbar HTML element -->
+    <div id="snackbar">Some text some message..</div> 
     <div class="container">
       <div class="header">
         <h1>Deezer Downloader</h1>
@@ -213,42 +276,31 @@ template = """
 </html>
 """
 
-# Global variables to track progress
-download_progress = {
-    'current': 0,
-    'total': 0,
-    'finished': False
-}
-
-
 @app.route('/', methods=['GET'])
 def index():
     return render_template_string(template)
-
 
 @app.route('/download', methods=['POST'])
 def download():
     arl_cookie = request.form['arl_cookie']
     url = request.form['url']
 
-    # Validate ARL cookie
     arl_cookie_trimmed = arl_cookie.strip()
     if not arl_cookie_trimmed:
         return jsonify({'error': 'ARL cookie cannot be empty.'}), 400
     if not arl_cookie_trimmed.isalnum():
         return jsonify({'error': 'ARL cookie must be alphanumeric.'}), 400
 
-    # Configure client
-    config = DeezerConfig(
-        cookie_arl=arl_cookie_trimmed
-    )
-
+    config = DeezerConfig(cookie_arl=arl_cookie_trimmed)
     client = DeezerClient(config)
     client.initialize()
 
-    # Extract type and ID from URL
+    task_id = str(uuid.uuid4())
+    task_progress_trackers[task_id] = client.progress_tracker
+
     url_match = re.match(r'https?://(?:www\.)?deezer\.com/(?:\w+/)?(\w+)/(\d+)', url)
     if not url_match:
+        if task_id in task_progress_trackers: del task_progress_trackers[task_id] 
         return jsonify({'error': 'Invalid Deezer URL'}), 400
 
     content_type, content_id = url_match.groups()
@@ -261,18 +313,36 @@ def download():
         elif content_type == 'playlist':
             client.download_playlist(content_id)
         else:
+            if task_id in task_progress_trackers: del task_progress_trackers[task_id] 
             return jsonify({'error': f'Unsupported content type: {content_type}'}), 400
     except DeezerException as e:
+        if task_id in task_progress_trackers: del task_progress_trackers[task_id] 
         return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        if task_id in task_progress_trackers: del task_progress_trackers[task_id]
+        app.logger.error(f"Unexpected error during download setup for task {task_id}: {str(e)}")
+        return jsonify({'error': 'An unexpected server error occurred.'}), 500
 
-    return jsonify({'success': True})
-
+    return jsonify({'success': True, 'task_id': task_id})
 
 @app.route('/progress', methods=['GET'])
 def progress():
-    progress_tracker = ProgressTracker()  # Access the Singleton
-    return jsonify(progress_tracker.get_progress())
+    task_id = request.args.get('task_id')
+    if not task_id:
+        return jsonify({'error': 'Task ID is required', 'finished': True}), 400
 
+    tracker = task_progress_trackers.get(task_id)
+    if not tracker:
+        return jsonify({'error': 'Progress not found for this task. It may have finished or an error occurred.',
+                        'finished': True}), 404
+
+    progress_data = tracker.get_progress()
+
+    if progress_data.get('finished'):
+        if task_id in task_progress_trackers:
+            del task_progress_trackers[task_id]
+
+    return jsonify(progress_data)
 
 if __name__ == '__main__':
     app.run(debug=False)

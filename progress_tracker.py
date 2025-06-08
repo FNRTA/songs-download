@@ -3,17 +3,10 @@ import threading
 
 
 class ProgressTracker:
-    _instance = None
     _lock = threading.Lock()
 
-    def __new__(cls):
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super(ProgressTracker, cls).__new__(cls)
-                    # Call the simple reset method, __new__ already holds the lock
-                    cls._instance._do_reset()
-        return cls._instance
+    def __init__(self):
+        self.reset()  # Initialize progress on creation
 
     # Renamed original reset to _do_reset, assuming it's called when lock is held
     def _do_reset(self):
