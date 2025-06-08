@@ -78,6 +78,48 @@ template = """
         margin-top: 10px;
         text-align: center;
       }
+      /* Snackbar CSS */
+      #snackbar {
+        visibility: hidden;
+        min-width: 250px;
+        margin-left: -125px;
+        background-color: #f44336; /* Red for errors */
+        color: white;
+        text-align: center;
+        border-radius: 2px;
+        padding: 16px;
+        position: fixed;
+        z-index: 1;
+        left: 50%;
+        top: 30px;
+        font-size: 17px;
+      }
+
+      #snackbar.show {
+        visibility: visible;
+        -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
+        animation: fadein 0.5s, fadeout 0.5s 2.5s;
+      }
+
+      @-webkit-keyframes fadein {
+        from {top: 0; opacity: 0;}
+        to {top: 30px; opacity: 1;}
+      }
+
+      @keyframes fadein {
+        from {top: 0; opacity: 0;}
+        to {top: 30px; opacity: 1;}
+      }
+
+      @-webkit-keyframes fadeout {
+        from {top: 30px; opacity: 1;}
+        to {top: 0; opacity: 0;}
+      }
+
+      @keyframes fadeout {
+        from {top: 30px; opacity: 1;}
+        to {top: 0; opacity: 0;}
+      }
     </style>
     <script>
       function startDownload() {
@@ -115,7 +157,7 @@ template = """
         .then(response => response.json())
         .then(data => {
           if (data.error) {
-            alert(data.error);
+            showSnackbar(data.error); // Use snackbar instead of alert
             button.disabled = false;
             progress.style.display = 'none';
             return;
@@ -124,9 +166,18 @@ template = """
 
         });
       }
+
+      // Function to show the snackbar
+      function showSnackbar(message) {
+        const snackbar = document.getElementById("snackbar");
+        snackbar.textContent = message;
+        snackbar.className = "show";
+        setTimeout(function(){ snackbar.className = snackbar.className.replace("show", ""); }, 3000);
+      }
     </script>
   </head>
   <body>
+    <div id="snackbar">Some text some message..</div> <!-- Snackbar HTML element -->
     <div class="container">
       <div class="header">
         <h1>Deezer Downloader</h1>
