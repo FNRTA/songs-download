@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Deezer Downloader</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div id="snackbar">Some text some message..</div>
+<div class="container">
+    <div class="header">
+        <h1>Deezer Downloader</h1>
+    </div>
+    <form>
+        <div class="form-group">
+            <label for="url">Content URL (Track, Album, or Playlist):</label>
+            <input type="text" id="url" name="url" required>
+        </div>
+        <div class="form-group">
+            <label for="arl_cookie">ARL Cookie:</label>
+            <input type="text" id="arl_cookie" name="arl_cookie" required>
+        </div>
+        <button type="button" class="button" onclick="startDownload()">Download</button>
+    </form>
+    <div class="progress" style="display: none;">Downloading...</div>
+    <div class="finished" style="display: none;">Download finished!</div>
+</div>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
