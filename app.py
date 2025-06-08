@@ -122,7 +122,6 @@ template = """
       }
     </style>
     <script>
-      // Load ARL cookie from localStorage on page load
       document.addEventListener('DOMContentLoaded', (event) => {
         const storedArlCookie = localStorage.getItem('arlCookieValue');
         if (storedArlCookie) {
@@ -171,17 +170,15 @@ template = """
         .then(response => response.json())
         .then(data => {
           if (data.error) {
-            showSnackbar(data.error); // Use snackbar instead of alert
+            showSnackbar(data.error);
             button.disabled = false;
             progress.style.display = 'none';
+            clearInterval(interval);
             return;
           }
-
-
         });
       }
-
-      // Function to show the snackbar
+      
       function showSnackbar(message) {
         const snackbar = document.getElementById("snackbar");
         snackbar.textContent = message;
@@ -235,9 +232,9 @@ def download():
     # Validate ARL cookie
     arl_cookie_trimmed = arl_cookie.strip()
     if not arl_cookie_trimmed:
-        return jsonify({'error': 'ARL cookie cannot be empty.'})
+        return jsonify({'error': 'ARL cookie cannot be empty.'}), 400
     if not arl_cookie_trimmed.isalnum():
-        return jsonify({'error': 'ARL cookie must be alphanumeric.'})
+        return jsonify({'error': 'ARL cookie must be alphanumeric.'}), 400
 
     # Configure client
     config = DeezerConfig(
@@ -250,7 +247,7 @@ def download():
     # Extract type and ID from URL
     url_match = re.match(r'https?://(?:www\.)?deezer\.com/(?:\w+/)?(\w+)/(\d+)', url)
     if not url_match:
-        return jsonify({'error': 'Invalid Deezer URL'})
+        return jsonify({'error': 'Invalid Deezer URL'}), 400
 
     content_type, content_id = url_match.groups()
 
@@ -262,9 +259,9 @@ def download():
         elif content_type == 'playlist':
             client.download_playlist(content_id)
         else:
-            return jsonify({'error': f'Unsupported content type: {content_type}'})
+            return jsonify({'error': f'Unsupported content type: {content_type}'}), 400
     except DeezerException as e:
-        return jsonify({'error': str(e)})
+        return jsonify({'error': str(e)}), 400
 
     return jsonify({'success': True})
 
