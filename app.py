@@ -122,11 +122,25 @@ template = """
       }
     </style>
     <script>
+      // Load ARL cookie from localStorage on page load
+      document.addEventListener('DOMContentLoaded', (event) => {
+        const storedArlCookie = localStorage.getItem('arlCookieValue');
+        if (storedArlCookie) {
+          document.getElementById('arl_cookie').value = storedArlCookie;
+        }
+      });
+
       function startDownload() {
         const button = document.querySelector('.button');
         const progress = document.querySelector('.progress');
         const finished = document.querySelector('.finished');
         const form = document.querySelector('form');
+        const arlCookieInput = document.getElementById('arl_cookie'); // Get ARL cookie input
+
+        // Store ARL cookie in localStorage
+        if (arlCookieInput && arlCookieInput.value) {
+          localStorage.setItem('arlCookieValue', arlCookieInput.value);
+        }
 
         button.disabled = true;
         progress.style.display = 'block';
@@ -218,9 +232,16 @@ def download():
     arl_cookie = request.form['arl_cookie']
     url = request.form['url']
 
+    # Validate ARL cookie
+    arl_cookie_trimmed = arl_cookie.strip()
+    if not arl_cookie_trimmed:
+        return jsonify({'error': 'ARL cookie cannot be empty.'})
+    if not arl_cookie_trimmed.isalnum():
+        return jsonify({'error': 'ARL cookie must be alphanumeric.'})
+
     # Configure client
     config = DeezerConfig(
-        cookie_arl=arl_cookie
+        cookie_arl=arl_cookie_trimmed
     )
 
     client = DeezerClient(config)
