@@ -151,7 +151,9 @@ template = """
             fetch('/progress')
               .then(response => response.json())
               .then(data => {
-                if (data.finished) {
+                if (data.starting) {
+                  progress.textContent = 'Download starting...';
+                } else if (data.finished) {
                   clearInterval(interval);
                   button.disabled = false;
                   progress.style.display = 'none';
