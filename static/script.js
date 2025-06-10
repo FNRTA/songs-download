@@ -93,7 +93,7 @@ function startDownload() {
             progress.style.display = 'none';
             currentTaskId = null;
           });
-      }, 2000);
+      }, 3000);
     } else {
         showSnackbar(data.message || 'Task ID not received.');
         button.disabled = false;
@@ -112,5 +112,5 @@ function showSnackbar(message) {
   const snackbar = document.getElementById("snackbar");
   snackbar.textContent = message;
   snackbar.className = "show";
-  setTimeout(function(){ snackbar.className = snackbar.className.replace("show", ""); }, 3000);
+  setTimeout(function(){ snackbar.className = snackbar.className.replace("show", ""); }, 4000);
 }
