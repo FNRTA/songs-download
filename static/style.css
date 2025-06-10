@@ -111,9 +111,29 @@ body {
 }
 
 .finished {
-  color: #fff;
-  background-color: #28a745; /* Modern green */
-  font-weight: bold;
+  margin-top: 20px;
+  color: #4CAF50;
+}
+
+.download-ready {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.download-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+}
+
+.download-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 10px;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>');
+    background-size: contain;
+    background-repeat: no-repeat;
 }
 
 /* Snackbar CSS */

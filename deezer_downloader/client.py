@@ -67,6 +67,7 @@ class DeezerClient:
             output_path = os.path.join(self.config.download_folder, filename)
 
         # Create output directory if it doesn't exist
+        os.makedirs(self.config.download_folder, exist_ok=True)
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
         self._download_and_decrypt_track(track_info, output_path)
@@ -98,7 +99,7 @@ class DeezerClient:
                 downloaded_files.append(path)
             except DeezerException as e:
                 logger.info(f"Failed to download track {track['SNG_TITLE']}: {e}")
-        self.progress_tracker.update(current=len(tracks), total=len(tracks), finished=True)
+        self.progress_tracker.update(current=len(tracks), total=len(tracks))
         return downloaded_files
 
     def download_album(self, album_id: str) -> List[str]:

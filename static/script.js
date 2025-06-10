@@ -9,27 +9,27 @@ let currentInterval = null;
 let currentTaskId = null;
 
 function startDownload() {
-  const button = document.querySelector('.button');
-  const progress = document.querySelector('.progress');
-  const finished = document.querySelector('.finished');
-  const form = document.querySelector('form');
-  const arlCookieInput = document.getElementById('arl_cookie');
+  const url = document.getElementById('url').value;
+  const arlCookie = document.getElementById('arl_cookie').value;
+  const progressDiv = document.querySelector('.progress');
+  const finishedDiv = document.querySelector('.finished');
+  const downloadReadyDiv = document.querySelector('.download-ready');
 
-  if (arlCookieInput && arlCookieInput.value) {
-    localStorage.setItem('arlCookieValue', arlCookieInput.value);
+  // Reset UI
+  progressDiv.style.display = 'none';
+  finishedDiv.style.display = 'none';
+  downloadReadyDiv.style.display = 'none';
+
+  if (!url || !arlCookie) {
+    showSnackbar('URL and ARL cookie are required.');
+    return;
   }
 
-  button.disabled = true;
-  progress.style.display = 'block';
-  finished.style.display = 'none';
+  progressDiv.style.display = 'block';
 
-  const formData = new FormData(form);
-  
-  if (currentInterval) {
-    clearInterval(currentInterval);
-    currentInterval = null;
-  }
-  currentTaskId = null;
+  const formData = new FormData();
+  formData.append('url', url);
+  formData.append('arl_cookie', arlCookie);
 
   fetch('/download', {
     method: 'POST',
@@ -38,79 +38,71 @@ function startDownload() {
   .then(response => response.json())
   .then(data => {
     if (data.error) {
-      showSnackbar(data.error);
-      button.disabled = false;
-      progress.style.display = 'none';
-      return;
-    }
-
-    if (data.task_id) {
-      currentTaskId = data.task_id;
-
-      currentInterval = setInterval(() => {
-        if (!currentTaskId) {
-          clearInterval(currentInterval);
-          currentInterval = null;
-          button.disabled = false;
-          progress.style.display = 'none';
-          return;
-        }
-
-        fetch(`/progress?task_id=${currentTaskId}`)
-          .then(response => response.json())
-          .then(progressData => {
-            if (progressData.error) {
-              showSnackbar(progressData.error);
-              clearInterval(currentInterval);
-              currentInterval = null;
-              button.disabled = false;
-              progress.style.display = 'none';
-              currentTaskId = null;
-              return;
-            }
-
-            if (progressData.starting) {
-              progress.textContent = 'Download starting...';
-            } else if (progressData.finished) {
-              progress.style.display = 'none';
-              finished.textContent = 'Download finished!';
-              finished.style.display = 'block';
-              clearInterval(currentInterval);
-              currentInterval = null;
-              button.disabled = false;
-              currentTaskId = null;
-            } else if (progressData.hasOwnProperty('current') &&
-            progressData.hasOwnProperty('total')) {
-              progress.textContent = `Downloading: ${progressData.current}/${progressData.total}`;
-            }
-          })
-          .catch(error => {
-            console.error('Error fetching progress:', error);
-            showSnackbar('Error fetching progress. Please try again.');
-            clearInterval(currentInterval);
-            currentInterval = null;
-            button.disabled = false;
-            progress.style.display = 'none';
-            currentTaskId = null;
-          });
-      }, 3000);
+      showSnackbar(`Error: ${data.error}`);
+      progressDiv.style.display = 'none';
+    } else if (data.success && data.task_id) {
+      pollProgress(data.task_id);
     } else {
-        showSnackbar(data.message || 'Task ID not received.');
-        button.disabled = false;
-        progress.style.display = 'none';
+      showSnackbar('An unknown error occurred.');
+      progressDiv.style.display = 'none';
     }
   })
   .catch(error => {
-    console.error('Error starting download:', error);
-    showSnackbar('Error starting download. Please check console and try again.');
-    button.disabled = false;
-    progress.style.display = 'none';
+    showSnackbar(`Request failed: ${error}`);
+    progressDiv.style.display = 'none';
   });
 }
 
+function pollProgress(taskId) {
+  const progressDiv = document.querySelector('.progress');
+  const finishedDiv = document.querySelector('.finished');
+  const downloadReadyDiv = document.querySelector('.download-ready');
+  const downloadButton = document.querySelector('.download-button');
+
+  const interval = setInterval(() => {
+    fetch(`/progress?task_id=${taskId}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.error && data.finished) {
+          showSnackbar(data.error);
+          progressDiv.style.display = 'none';
+          clearInterval(interval);
+          return;
+        }
+
+        if (data.finished) {
+          progressDiv.style.display = 'none';
+          clearInterval(interval);
+
+          if (data.zip_ready) {
+            // Zip is ready, show download button
+            finishedDiv.style.display = 'none';
+            downloadReadyDiv.style.display = 'block';
+            downloadButton.onclick = () => {
+              window.open(`/download_zip/${taskId}`, '_blank');
+            };
+          } else if (data.error) {
+            // Handle case where it finished with an error but no zip
+            showSnackbar(`Error: ${data.error}`);
+          } else {
+            // Finished successfully but no zip (should not happen with new flow)
+            finishedDiv.style.display = 'block';
+          }
+        } else if (!data.starting) {
+          progressDiv.textContent = `Downloading... ${data.current} / ${data.total}`;
+        }
+      })
+      .catch(error => {
+        showSnackbar(`Polling failed: ${error}`);
+        progressDiv.style.display = 'none';
+        clearInterval(interval);
+      });
+  }, 2000);
+}
+
 function showSnackbar(message) {
-  const snackbar = document.getElementById("snackbar");
+  const snackbar = document.getElementById('snackbar');
   snackbar.textContent = message;
-  snackbar.className = "show";
-  setTimeout(function(){ snackbar.className = snackbar.className.replace("show", ""); }, 4000);
+  snackbar.className = 'show';
+  setTimeout(() => { snackbar.className = snackbar.className.replace('show', ''); }, 3000);
 }

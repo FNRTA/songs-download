@@ -1,13 +1,24 @@
-from flask import Flask, request, render_template, jsonify
+from flask import Flask, request, render_template, jsonify, send_from_directory, after_this_request
 from deezer_downloader.client import DeezerClient
 from deezer_downloader.config import DeezerConfig
 from deezer_downloader.exceptions import DeezerException
 import re
 import uuid
 import threading
+import os
+import shutil
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
+# --- Constants and Setup ---
+
+DOWNLOADS_DIR = os.path.join(app.root_path, 'downloads')
+ZIPS_DIR = os.path.join(app.root_path, 'zips')
+
+if not os.path.exists(DOWNLOADS_DIR):
+    os.makedirs(DOWNLOADS_DIR)
+if not os.path.exists(ZIPS_DIR):
+    os.makedirs(ZIPS_DIR)
 
 # --- Helper Functions ---
 
@@ -86,10 +97,26 @@ def _execute_download_in_background(client, content_type, content_id, task_id):
     }
 
     action = download_actions.get(content_type)
+    task_download_dir = client.config.download_folder
 
     try:
         if action:
             action(content_id)
+            # All files for the task are now in task_download_dir
+            zip_filename = f"{task_id}.zip"
+            zip_path = os.path.join(ZIPS_DIR, zip_filename)
+
+            # Create zip from the task's download directory
+            shutil.make_archive(os.path.join(ZIPS_DIR, task_id), 'zip', task_download_dir)
+            app.logger.info(f"Task {task_id}: Successfully created zip archive at {zip_path}")
+
+            # Clean up the original download directory
+            shutil.rmtree(task_download_dir)
+            app.logger.info(f"Task {task_id}: Cleaned up source directory {task_download_dir}")
+
+            # Update tracker with finished status and zip path
+            tracker.update(finished=True, zip_ready=True)
+
         else:
             # This case should be caught by pre-thread validation in /download
             err_msg = f'Unsupported content type in thread: {content_type}'
@@ -150,6 +177,22 @@ def download():
     task_id = task_manager.create_task(client.progress_tracker)
     app.logger.info(f'Task {task_id} created for {content_type}/{content_id}')
 
+    # Create a unique download folder for this task
+    task_download_path = os.path.join(DOWNLOADS_DIR, task_id)
+    if not os.path.exists(task_download_path):
+        os.makedirs(task_download_path)
+
+    config = DeezerConfig(cookie_arl=arl_cookie, download_folder=task_download_path)
+    client = DeezerClient(config)
+    try:
+        client.initialize()
+        app.logger.info('DeezerClient initialized')
+    except Exception as e:
+        app.logger.error(f"Failed to initialize DeezerClient: {str(e)}")
+        return jsonify({'error': f'Failed to initialize Deezer session'}), 500
+
+    task_manager._tasks[task_id] = client.progress_tracker  # Associate tracker with the task
+
     thread = threading.Thread(target=_execute_download_in_background,
                               args=(client, content_type, content_id, task_id))
     thread.daemon = True
@@ -171,11 +214,40 @@ def progress():
 
     progress_data = tracker.get_progress()
 
-    if progress_data.get('finished'):
-        task_manager.remove_task(task_id)
-        app.logger.info(f"Cleaned up finished task {task_id} from progress route.")
-
     return jsonify(progress_data)
+
+
+@app.route('/download_zip/<task_id>', methods=['GET'])
+def download_zip(task_id):
+    """Serves the zipped download archive and cleans up afterwards."""
+    # Validate task_id by checking for tracker existence. This prevents path injection.
+    tracker = task_manager.get_tracker(task_id)
+    if not tracker:
+        return jsonify({'error': 'Task not found, invalid, or already cleaned up.'}), 404
+
+    # Construct filename from the validated task_id and check if it exists.
+    zip_filename = f"{task_id}.zip"
+    zip_path = os.path.join(ZIPS_DIR, zip_filename)
+
+    if not os.path.exists(zip_path):
+        return jsonify({'error': 'Zip file not found or not ready.'}), 404
+
+    @after_this_request
+    def cleanup_after_request(response):
+        try:
+            task_manager.remove_task(task_id)
+            app.logger.info(f"Cleaned up finished task {task_id} from progress route.")
+
+            if os.path.exists(zip_path):
+                os.remove(zip_path)
+                app.logger.info(f"Cleaned up zip file: {zip_path}")
+            task_manager.remove_task(task_id)
+            app.logger.info(f"Cleaned up task {task_id} after zip download.")
+        except Exception as e:
+            app.logger.error(f"Error during cleanup for task {task_id}: {e}")
+        return response
+
+    return send_from_directory(ZIPS_DIR, zip_filename, as_attachment=True)
 
 if __name__ == '__main__':
     app.run(debug=False)  # Set debug=True for development if needed, False for production
