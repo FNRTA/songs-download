@@ -117,17 +117,47 @@ body {
 
 .download-ready {
     margin-top: 20px;
-    text-align: center;
 }
 
-.download-button {
+.download-button { /* Green color for success */
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1em;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 10px 20px;
+    gap: 10px;
+    transition: background-color 0.3s ease;
+
+    /* New border animation */
+    border-width: 3px;
+    animation: border-flicker 3.5s linear infinite;
+}
+
+.download-button:hover {/* Darker green on hover */
+    animation-play-state: paused; /* Optional: pause animation on hover */
+}
+
+/* New animation for the button border */
+@keyframes border-flicker {
+    0% {
+        border-style: solid;
+        border-color: #28a745;
+    }
+    50% {
+        border-style: solid;
+        border-color: #87CEEB; /* Sky Blue */
+    }
+    100% {
+        border-style: solid;
+        border-color: #28a745;
+    }
 }
 
 .download-icon {
+    display: inline-block;
     width: 20px;
     height: 20px;
     margin-right: 10px;
