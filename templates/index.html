@@ -23,6 +23,11 @@
     </form>
     <div class="progress" style="display: none;">Downloading...</div>
     <div class="finished" style="display: none;">Download finished!</div>
+    <div class="download-ready" style="display: none;">
+        <button type="button" class="button download-button" onclick="">
+            <i class="download-icon"></i><span>Download files</span>
+        </button>
+    </div>
 </div>
 <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
