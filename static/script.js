@@ -14,6 +14,12 @@ function startDownload() {
   const progressDiv = document.querySelector('.progress');
   const finishedDiv = document.querySelector('.finished');
   const downloadReadyDiv = document.querySelector('.download-ready');
+  
+  // Save ARL cookie to localStorage
+  if (arlCookie) {
+    localStorage.setItem('arlCookieValue', arlCookie);
+  }
+
 
   // Reset UI
   progressDiv.style.display = 'none';
