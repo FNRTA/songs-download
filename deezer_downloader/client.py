@@ -8,7 +8,8 @@ from .sessions import DeezerSession
 from .config import DeezerConfig
 from .crypto import DeezerCrypto
 from .exceptions import DeezerException, DeezerApiException, Deezer403Exception, Deezer404Exception
-from progress_tracker import ProgressTracker
+from redis_manager import RedisManager
+from progress_tracker import FIELD_STARTING, FIELD_CURRENT, FIELD_TOTAL, FIELD_FINISHED, FIELD_ERROR
 from logging_config import logger
 
 
@@ -32,10 +33,11 @@ class ScriptExtractor(HTMLParser):
 
 
 class DeezerClient:
-    def __init__(self, config: DeezerConfig):
+    def __init__(self, config: DeezerConfig, redis_manager: RedisManager, task_id: str):
         self.config = config
         self.session = DeezerSession(config)
-        self.progress_tracker = ProgressTracker()  # Reference to the global progress
+        self.redis_manager = redis_manager
+        self.task_id = task_id
 
     def initialize(self):
         """Initialize the client session"""
@@ -52,11 +54,7 @@ class DeezerClient:
         Returns:
             Path to downloaded file
         """
-        # Update progress
-        self.progress_tracker.update(
-            current=self.progress_tracker.get_progress()['current'] + 1,
-            total=self.progress_tracker.get_progress()['total']
-        )
+        # Progress update is handled by the calling method (download_playlist/download_album)
         track_info = self._get_track_info(track_id)
 
         if not output_path:
@@ -85,21 +83,25 @@ class DeezerClient:
         """
         playlist_name, tracks = self._get_playlist_tracks(playlist_id)
 
-        self.progress_tracker.update(current=0, total=len(tracks), finished=False)
+        self.redis_manager.update_task_progress(
+            self.task_id,
+            **{FIELD_STARTING: False, FIELD_CURRENT: 0, FIELD_TOTAL: len(tracks), FIELD_ERROR: None}
+        )
 
         downloaded_files = []
 
-        logger.info(f"Downloading playlist '{playlist_name}' ({len(tracks)} tracks)")
+        logger.info(f"Downloading playlist '{playlist_name}' ({len(tracks)} tracks) for task {self.task_id}")
 
         for i, track in enumerate(tracks, 1):
             try:
                 logger.info(f"[{i}/{len(tracks)}] Downloading: {track['SNG_TITLE']}")
+                # download_track no longer updates progress directly for individual tracks within a playlist
                 path = self.download_track(str(track['SNG_ID']))
-                self.progress_tracker.update(current=i, total=len(tracks))
+                self.redis_manager.update_task_progress(self.task_id, **{FIELD_CURRENT: i})
                 downloaded_files.append(path)
             except DeezerException as e:
-                logger.info(f"Failed to download track {track['SNG_TITLE']}: {e}")
-        self.progress_tracker.update(current=len(tracks), total=len(tracks))
+                logger.error(f"Failed to download track: {e}")
+        # The overall 'finished' status (including zipping) is handled in app.py
         return downloaded_files
 
     def download_album(self, album_id: str) -> List[str]:
@@ -113,21 +115,27 @@ class DeezerClient:
             List of paths to downloaded files
         """
         tracks = self._get_album_tracks(album_id)
-        self.progress_tracker.update(current=0, total=len(tracks), finished=False)
+        album_title = tracks[0]['ALB_TITLE'] if tracks else "Unknown Album"
+
+        self.redis_manager.update_task_progress(
+            self.task_id,
+            **{FIELD_STARTING: False, FIELD_CURRENT: 0, FIELD_TOTAL: len(tracks), FIELD_ERROR: None}
+        )
 
         downloaded_files = []
 
-        logger.info(f"Downloading album '{tracks[0]['ALB_TITLE']}' ({len(tracks)} tracks)")
+        logger.info(f"Downloading album '{album_title}' ({len(tracks)} tracks) for task {self.task_id}")
 
         for i, track in enumerate(tracks, 1):
             try:
                 logger.info(f"[{i}/{len(tracks)}] Downloading: {track['SNG_TITLE']}")
+                # download_track no longer updates progress directly for individual tracks within an album
                 path = self.download_track(str(track['SNG_ID']))
-                self.progress_tracker.update(current=i, total=len(tracks))
+                self.redis_manager.update_task_progress(self.task_id, **{FIELD_CURRENT: i})
                 downloaded_files.append(path)
             except DeezerException as e:
-                logger.info(f"Failed to download track {track['SNG_TITLE']}: {e}")
-        self.progress_tracker.update(current=len(tracks), total=len(tracks), finished=True)  # Mark as finished
+                logger.error(f"Failed to download track: {e}")
+        # The overall 'finished' status (including zipping) is handled in app.py
         return downloaded_files
 
     def _get_file_extension(self) -> str:
