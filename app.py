@@ -74,7 +74,7 @@ def validate_arl_cookie(arl_cookie):
     arl_cookie_trimmed = arl_cookie.strip()
     if not arl_cookie_trimmed:
         return None, 'ARL cookie cannot be empty.'
-    if not arl_cookie_trimmed.isalnum():  
+    if not arl_cookie_trimmed.isalnum():
         return None, 'ARL cookie must be alphanumeric.'
     return arl_cookie_trimmed, None
 
@@ -84,7 +84,7 @@ def parse_deezer_url(url):
     url_match = re.match(r'https?://(?:www\.)?deezer\.com/(?:\w+/)?(\w+)/(\d+)', url)
     if not url_match:
         return None, None
-    return url_match.groups()  
+    return url_match.groups()
 
 
 # --- Task Management ---
@@ -316,7 +316,7 @@ def progress():
                             'zip_potentially_available': True}), 404
         return jsonify({'error': 'Task not found or has expired.', 'finished': True,
                         'error': 'Task not found or has expired.'}), 404
-    
+
     return jsonify(progress_data)
 
 
@@ -334,7 +334,7 @@ def download_zip(task_id):
             err_msg = f"Download failed: {progress_data.get(FIELD_ERROR)}"
         elif not progress_data.get(FIELD_FINISHED):
             err_msg = 'Download is still in progress.'
-        return jsonify({'error': err_msg}), 400 
+        return jsonify({'error': err_msg}), 400
 
     zip_filename = f"{task_id}.zip"
     zip_file_full_path = os.path.join(ZIPS_DIR, zip_filename)
