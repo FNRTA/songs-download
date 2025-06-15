@@ -1,1 +1,1 @@
-web: gunicorn app:app
+web: gunicorn --worker-tmp-dir /dev/shm --worker-class=gthread app:app
