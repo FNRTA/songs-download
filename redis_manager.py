@@ -13,7 +13,17 @@ class RedisManager:
     def __init__(self, redis_url: Optional[str] = None, expire_hours: int = 2):
         if redis_url is None:
             redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-        self.redis = redis.Redis.from_url(redis_url, decode_responses=True)
+
+        connection_kwargs = {}
+        if redis_url.startswith('rediss://'):
+            # For Heroku Redis or other SSL-enabled Redis, disable cert verification
+            # if encountering self-signed certificate issues.
+            connection_kwargs['ssl_cert_reqs'] = 'none'
+            # Heroku Redis might also require ssl=True if not inferred by rediss://
+            # but from_url usually handles this. If issues persist, add:
+            # connection_kwargs['ssl'] = True
+
+        self.redis = redis.Redis.from_url(redis_url, decode_responses=True, **connection_kwargs)
         self.namespace = 'dz-dl/'  # Updated namespace
         self.expire_hours = expire_hours
 
