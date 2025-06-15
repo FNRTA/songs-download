@@ -7,55 +7,18 @@ import uuid
 import threading
 import os
 import shutil
-import tempfile
-from datetime import datetime, timedelta
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
-# --- Environment Configuration ---
-ENV = os.environ.get('FLASK_ENV', 'development').lower()
-IS_PRODUCTION = ENV == 'production'
-
 # --- Constants and Setup ---
-BASE_TEMP_DIR = os.path.join(tempfile.gettempdir(), 'deezer_dl')
-DOWNLOADS_DIR = os.path.join(BASE_TEMP_DIR, 'downloads')
-ZIPS_DIR = os.path.join(BASE_TEMP_DIR, 'zips')
 
-# Ensure directories exist
-os.makedirs(DOWNLOADS_DIR, exist_ok=True)
-os.makedirs(ZIPS_DIR, exist_ok=True)
+DOWNLOADS_DIR = os.path.join(app.root_path, 'downloads')
+ZIPS_DIR = os.path.join(app.root_path, 'zips')
 
-app.logger.info(f"Running in {ENV} environment")
-app.logger.info(f"Downloads directory: {DOWNLOADS_DIR}")
-app.logger.info(f"Zips directory: {ZIPS_DIR}")
-
-
-def cleanup_old_files(directory, max_age_hours=1):
-    """Clean up files older than max_age_hours"""
-    if not os.path.exists(directory):
-        return
-
-    now = datetime.now()
-    for item in os.listdir(directory):
-        item_path = os.path.join(directory, item)
-        try:
-            if os.path.isfile(item_path):
-                file_mtime = datetime.fromtimestamp(os.path.getmtime(item_path))
-                if now - file_mtime > timedelta(hours=max_age_hours):
-                    os.remove(item_path)
-                    app.logger.info(f"Cleaned up old file: {item_path}")
-            elif os.path.isdir(item_path):
-                dir_mtime = datetime.fromtimestamp(os.path.getmtime(item_path))
-                if now - dir_mtime > timedelta(hours=max_age_hours):
-                    shutil.rmtree(item_path, ignore_errors=True)
-                    app.logger.info(f"Cleaned up old directory: {item_path}")
-        except Exception as e:
-            app.logger.error(f"Error cleaning up {item_path}: {e}")
-
-
-# Clean up old files on startup
-cleanup_old_files(DOWNLOADS_DIR)
-cleanup_old_files(ZIPS_DIR)
+if not os.path.exists(DOWNLOADS_DIR):
+    os.makedirs(DOWNLOADS_DIR)
+if not os.path.exists(ZIPS_DIR):
+    os.makedirs(ZIPS_DIR)
 
 # --- Helper Functions ---
 
@@ -287,7 +250,4 @@ def download_zip(task_id):
     return send_from_directory(ZIPS_DIR, zip_filename, as_attachment=True)
 
 if __name__ == '__main__':
-    debug = not IS_PRODUCTION
-    app.run(host='0.0.0.0',
-            port=int(os.environ.get('PORT', 5000)),
-            debug=debug)
+    app.run(debug=False)  # Set debug=True for development if needed, False for production
