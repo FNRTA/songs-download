@@ -207,6 +207,7 @@ def _execute_download_in_background(arl_cookie, content_type_val, content_id_val
 
     config = DeezerConfig(cookie_arl=arl_cookie, download_folder=task_specific_download_dir)
     client = DeezerClient(config=config, redis_manager=task_manager.redis_manager, task_id=task_id)
+    client.initialize()
 
     download_actions = {
         'track': client.download_track,
@@ -300,11 +301,12 @@ def download():
     ))
     thread.start()
 
-    return jsonify({'task_id': task_id})
+    return jsonify({'success': True, 'task_id': task_id})
 
 
-@app.route('/progress/<task_id>', methods=['GET'])
-def progress(task_id):
+@app.route('/progress', methods=['GET'])
+def progress():
+    task_id = request.args.get('task_id')
     progress_data = task_manager.get_task_progress(task_id)
 
     if progress_data is None:
