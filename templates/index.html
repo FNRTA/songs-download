@@ -17,16 +17,39 @@
         </div>
         <div class="form-group">
             <label for="arl_cookie">ARL Cookie:</label>
-            <input type="text" id="arl_cookie" name="arl_cookie" required>
+            <textarea id="arl_cookie" name="arl_cookie" rows="3" required></textarea>
         </div>
-        <button type="button" class="button" onclick="startDownload()">Download</button>
+        <button type="button" class="button" onclick="startDownload()">Start download</button>
     </form>
     <div class="progress" style="display: none;">Downloading...</div>
     <div class="finished" style="display: none;">Download finished!</div>
     <div class="download-ready" style="display: none;">
         <button type="button" class="button download-button" onclick="">
-            <i class="download-icon"></i><span>Download files</span>
+            <i class="download-icon"></i><span>Files ready</span>
         </button>
+    </div>
+
+    <div class="instructions-section">
+        <h2>How to get your Deezer ARL Cookie</h2>
+        <ol>
+            <li>Open Deezer in your browser (<a href="https://www.deezer.com" target="_blank">www.deezer.com</a>) and
+                log in to your account.
+            </li>
+            <li>Open your browser's developer tools. You can usually do this by pressing F12 (or Fn+F12 on some
+                laptops), or by right-clicking on the page and selecting "Inspect" or "Inspect Element".
+            </li>
+            <li>In the developer tools panel, look for a tab named "Application" (in Chrome, Edge, or Opera) or
+                "Storage" (in Firefox).
+            </li>
+            <li>In the sidebar of the Application/Storage tab, find the "Cookies" section. Expand it if necessary, and
+                click on the line that shows an address related to Deezer (e.g., <code>https://www.deezer.com</code>).
+            </li>
+            <li>A table of cookies will appear. Look for a cookie with the name <code>arl</code> in the "Name" column.
+            </li>
+            <li>Copy the long string of characters from the "Value" column for the <code>arl</code> cookie. This is your
+                ARL cookie value.
+            </li>
+        </ol>
     </div>
 </div>
 <script src="{{ url_for('static', filename='script.js') }}"></script>

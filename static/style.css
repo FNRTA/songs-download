@@ -12,7 +12,7 @@ body {
 }
 
 .container {
-  max-width: 500px;
+  max-width: 600px;
   margin: 50px auto;
   padding: 30px;
   background-color: #fff;
@@ -55,6 +55,25 @@ body {
 }
 
 .form-group input:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+  outline: none;
+}
+
+.form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 16px;
+  font-family: inherit; /* Ensure it uses the same font as other inputs */
+  line-height: 1.5; /* Improve readability for multi-line text */
+  border: 1px solid #d1d1d1;
+  border-radius: 8px;
+  transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+  resize: vertical; /* Allow vertical resizing */
+  min-height: 120px; /* Set a minimum height, rows attribute in HTML provides initial */
+}
+
+.form-group textarea:focus {
   border-color: #007bff;
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
   outline: none;
@@ -120,6 +139,8 @@ body {
 }
 
 .download-button { /* Green color for success */
+    background-image: none; /* Override generic button gradient */
+    background-color: #28a745; /* Solid green background */
     color: white;
     padding: 12px 20px;
     border-radius: 8px;
@@ -133,10 +154,12 @@ body {
 
     /* New border animation */
     border-width: 3px;
-    animation: border-flicker 3.5s linear infinite;
+    animation: border-flicker 3s linear infinite;
 }
 
 .download-button:hover {/* Darker green on hover */
+    background-image: none; /* Ensure no gradient on hover */
+    background-color: #218838; /* Darker solid green for hover */
     animation-play-state: paused; /* Optional: pause animation on hover */
 }
 
@@ -148,7 +171,7 @@ body {
     }
     50% {
         border-style: solid;
-        border-color: #87CEEB; /* Sky Blue */
+        border-color: #0069d9; /* Sky Blue */
     }
     100% {
         border-style: solid;
@@ -208,4 +231,46 @@ body {
 @keyframes fadeout {
   from {top: 30px; opacity: 1;}
   to {top: 0; opacity: 0;}
+}
+
+/* Instructions Section Styling */
+.instructions-section {
+  margin-top: 40px;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.instructions-section h2 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 20px;
+  color: #333;
+}
+
+.instructions-section ol {
+  padding-left: 20px; /* Add some padding to the left of the numbers */
+  margin-bottom: 0; /* Remove default bottom margin from ol */
+}
+
+.instructions-section li {
+  margin-bottom: 10px;
+  line-height: 1.5; /* Improve readability within each item */
+}
+
+.instructions-section li code {
+  background-color: #e8e8e8;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+}
+
+.instructions-section a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.instructions-section a:hover {
+  text-decoration: underline;
 }
