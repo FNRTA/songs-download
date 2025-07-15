@@ -10,6 +10,7 @@ class DeezerSession:
         self.config = config
         self.session = self._create_session()
         self.license_token: Optional[str] = None
+        self.csrf_token: Optional[str] = None
         self.sound_format: str = "MP3_128"
 
     def _create_session(self) -> requests.Session:
@@ -38,6 +39,7 @@ class DeezerSession:
         """Initialize session with user data and quality settings"""
         user_data = self._get_user_data()
         self.license_token = user_data['license_token']
+        self.csrf_token = user_data['csrf_token']
         self._set_sound_quality(self.config.quality, user_data['web_sound_quality'])
 
     def _get_user_data(self) -> Dict[str, Any]:
@@ -55,7 +57,8 @@ class DeezerSession:
             data = response.json()['results']
             return {
                 'license_token': data['USER']['OPTIONS']['license_token'],
-                'web_sound_quality': data['USER']['OPTIONS']['web_sound_quality']
+                'web_sound_quality': data['USER']['OPTIONS']['web_sound_quality'],
+                'csrf_token': data['checkForm']
             }
         except (requests.exceptions.RequestException, KeyError) as e:
             raise DeezerApiException(f"Failed to get user data: {e}")

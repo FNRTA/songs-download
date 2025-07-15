@@ -223,7 +223,10 @@ def _execute_download_in_background(arl_cookie, content_type_val, content_id_val
             task_manager.update_task_progress(task_id, **{FIELD_ERROR: err_msg, FIELD_FINISHED: True})
             return
 
-        downloaded_file_paths = action(content_id_val)
+        if action == client.download_track:
+            downloaded_file_paths, filename = action(content_id_val)
+        else:
+            downloaded_file_paths = action(content_id_val)
 
         if not downloaded_file_paths:
             app.logger.info(

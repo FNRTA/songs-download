@@ -33,7 +33,7 @@ class ScriptExtractor(HTMLParser):
 
 
 class DeezerClient:
-    def __init__(self, config: DeezerConfig, redis_manager: RedisManager, task_id: str):
+    def __init__(self, config: DeezerConfig, redis_manager: Optional[RedisManager] = None, task_id: Optional[str] = None):
         self.config = config
         self.session = DeezerSession(config)
         self.redis_manager = redis_manager
@@ -43,7 +43,7 @@ class DeezerClient:
         """Initialize the client session"""
         self.session.initialize_session()
 
-    def download_track(self, track_id: str, output_path: Optional[str] = None) -> str:
+    def download_track(self, track_id: str) -> Tuple[str, str]:
         """
         Download a single track by ID
 
@@ -57,19 +57,19 @@ class DeezerClient:
         # Progress update is handled by the calling method (download_playlist/download_album)
         track_info = self._get_track_info(track_id)
 
-        if not output_path:
-            # Clean filename of invalid characters
-            clean_title = re.sub(r'[<>:"/\\|?*]', '', track_info['SNG_TITLE'])
-            clean_artist_name = re.sub(r'[<>:"/\\|?*]', '', track_info['ART_NAME'])
-            filename = f"{clean_artist_name} - {clean_title}.{self._get_file_extension()}"
-            output_path = os.path.join(self.config.download_folder, filename)
+
+        # Clean filename of invalid characters
+        clean_title = re.sub(r'[<>:"/\\|?*]', '', track_info['SNG_TITLE'])
+        clean_artist_name = re.sub(r'[<>:"/\\|?*]', '', track_info['ART_NAME'])
+        filename = f"{clean_artist_name} - {clean_title}.{self._get_file_extension()}"
+        output_path = os.path.join(self.config.download_folder, filename)
 
         # Create output directory if it doesn't exist
         os.makedirs(self.config.download_folder, exist_ok=True)
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
         self._download_and_decrypt_track(track_info, output_path)
-        return output_path
+        return output_path, filename
 
     def download_playlist(self, playlist_id: str) -> List[str]:
         """
@@ -83,10 +83,11 @@ class DeezerClient:
         """
         playlist_name, tracks = self._get_playlist_tracks(playlist_id)
 
-        self.redis_manager.update_task_progress(
-            self.task_id,
-            **{FIELD_STARTING: False, FIELD_CURRENT: 0, FIELD_TOTAL: len(tracks), FIELD_ERROR: None}
-        )
+        if self.redis_manager and self.task_id:
+            self.redis_manager.update_task_progress(
+                self.task_id,
+                **{FIELD_STARTING: False, FIELD_CURRENT: 0, FIELD_TOTAL: len(tracks), FIELD_ERROR: None}
+            )
 
         downloaded_files = []
 
@@ -96,8 +97,9 @@ class DeezerClient:
             try:
                 logger.info(f"[{i}/{len(tracks)}] Downloading: {track['SNG_TITLE']}")
                 # download_track no longer updates progress directly for individual tracks within a playlist
-                path = self.download_track(str(track['SNG_ID']))
-                self.redis_manager.update_task_progress(self.task_id, **{FIELD_CURRENT: i})
+                path, filename = self.download_track(str(track['SNG_ID']))
+                if self.redis_manager and self.task_id:
+                    self.redis_manager.update_task_progress(self.task_id, **{FIELD_CURRENT: i})
                 downloaded_files.append(path)
             except DeezerException as e:
                 logger.error(f"Failed to download track: {e}")
@@ -117,10 +119,11 @@ class DeezerClient:
         tracks = self._get_album_tracks(album_id)
         album_title = tracks[0]['ALB_TITLE'] if tracks else "Unknown Album"
 
-        self.redis_manager.update_task_progress(
-            self.task_id,
-            **{FIELD_STARTING: False, FIELD_CURRENT: 0, FIELD_TOTAL: len(tracks), FIELD_ERROR: None}
-        )
+        if self.redis_manager and self.task_id:
+            self.redis_manager.update_task_progress(
+                self.task_id,
+                **{FIELD_STARTING: False, FIELD_CURRENT: 0, FIELD_TOTAL: len(tracks), FIELD_ERROR: None}
+            )
 
         downloaded_files = []
 
@@ -130,8 +133,9 @@ class DeezerClient:
             try:
                 logger.info(f"[{i}/{len(tracks)}] Downloading: {track['SNG_TITLE']}")
                 # download_track no longer updates progress directly for individual tracks within an album
-                path = self.download_track(str(track['SNG_ID']))
-                self.redis_manager.update_task_progress(self.task_id, **{FIELD_CURRENT: i})
+                path, filename = self.download_track(str(track['SNG_ID']))
+                if self.redis_manager and self.task_id:
+                    self.redis_manager.update_task_progress(self.task_id, **{FIELD_CURRENT: i})
                 downloaded_files.append(path)
             except DeezerException as e:
                 logger.error(f"Failed to download track: {e}")
@@ -222,18 +226,6 @@ class DeezerClient:
         # Extract numeric ID from URL if needed
         playlist_id = re.search(r'\d+', playlist_id).group(0)
 
-        # Get CSRF token
-        response = self.session.session.post(
-            "https://www.deezer.com/ajax/gw-light.php",
-            params={
-                'method': 'deezer.getUserData',
-                'input': '3',
-                'api_version': '1.0',
-                'api_token': ''
-            }
-        )
-        csrf_token = response.json()['results']['checkForm']
-
         # Get playlist data
         response = self.session.session.post(
             "https://www.deezer.com/ajax/gw-light.php",
@@ -241,7 +233,7 @@ class DeezerClient:
                 'method': 'deezer.pagePlaylist',
                 'input': '3',
                 'api_version': '1.0',
-                'api_token': csrf_token
+                'api_token': self.session.csrf_token
             },
             json={
                 'playlist_id': int(playlist_id),
@@ -258,6 +250,54 @@ class DeezerClient:
             raise DeezerApiException(f"Failed to get playlist: {data['error']}")
 
         return data['results']['DATA']['TITLE'], data['results']['SONGS']['data']
+
+    def search_track(self, query: str) -> Optional[str]:
+        """
+        Search for a track by query and return the ID of the first result.
+
+        Args:
+            query: The search query (e.g., song name).
+
+        Returns:
+            The track ID of the first search result, or None if no results.
+        """
+        logger.info(f"Searching for track: '{query}'")
+        try:
+            response = self.session.session.post(
+                "https://www.deezer.com/ajax/gw-light.php",
+                params={
+                    'method': 'deezer.pageSearch',
+                    'input': '3',
+                    'api_version': '1.0',
+                    'api_token': self.session.csrf_token
+                },
+                json={
+                    'query': query,
+                    'start': 0,
+                    'nb': 1,  # We only need the top result
+                    'suggest': True,
+                    'artist_suggest': True,
+                    'top_tracks': True
+                }
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get('error'):
+                raise DeezerApiException(f"Failed to search: {data['error']}")
+
+            track_data = data.get('results', {}).get('TRACK', {}).get('data', [])
+            if not track_data:
+                logger.warning(f"No track results found for query: '{query}'")
+                return None
+
+            first_track_id = track_data[0].get('SNG_ID')
+            logger.info(f"Found track ID '{first_track_id}' for query '{query}'")
+            return first_track_id
+
+        except Exception as e:
+            logger.error(f"An error occurred during search: {e}")
+            return None
 
     def _get_album_tracks(self, album_id: str) -> List[Dict[str, Any]]:
         """Get all tracks in an album"""
